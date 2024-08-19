@@ -64,7 +64,10 @@ type LoginRequest struct {
 
 // LoginResponse struct for login API response
 type LoginResponse struct {
+	Id uuid.UUID `json:"id"`
 	Token string `json:"token"`
+	Username string `json:"username"`
+	Email    string `json:"email"`
 }
 
 // VerifyPassword function to compare plain password with hashed password

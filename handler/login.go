@@ -28,7 +28,7 @@ func Login(c *fiber.Ctx) error {
 		return response.ResponseError(c, 500, "Failed to generate token", err)
 	}
 
-	return response.ResponseSuccessOneData(c, "Login successful", model.LoginResponse{Token: token})
+	return response.ResponseSuccessOneData(c, "Login successful", model.LoginResponse{Id: user.ID,Token: token,Username: user.Username, Email: user.Email})
 }
 
 // Protected endpoint handler
