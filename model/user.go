@@ -2,8 +2,12 @@ package model
 
 import (
 	"encoding/json"
+	"fmt"
+	"time"
 
+	"github.com/dgrijalva/jwt-go"
 	"github.com/google/uuid"
+	"github.com/siyaga/go_rest_api/config"
 	"golang.org/x/crypto/bcrypt" // Import bcrypt package
 	"gorm.io/gorm"
 )
@@ -50,4 +54,71 @@ func (u *User) MarshalJSON() ([]byte, error) {
 			return nil // Return nil for null
 		}(),
 	})
+}
+
+// LoginRequest struct for login API
+type LoginRequest struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+// LoginResponse struct for login API response
+type LoginResponse struct {
+	Token string `json:"token"`
+}
+
+// VerifyPassword function to compare plain password with hashed password
+func VerifyPassword(hashedPassword string, plainPassword string) error {
+	return bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(plainPassword))
+}
+// JWT Claims
+type Claims struct {
+	Username string `json:"username"`
+	jwt.StandardClaims
+}
+
+// GenerateJWT function to generate JWT token
+func GenerateJWT(username string) (string, error) {
+	// Create the Claims
+	claims := &Claims{
+		Username: username,
+		StandardClaims: jwt.StandardClaims{
+			ExpiresAt: time.Now().Add(time.Hour * 24).Unix(), // Token expires in 24 hours
+			Issuer:    "go_rest_api",                        // Issuer of the token
+		},
+	}
+
+	// Create the token
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+
+	// Sign the token
+	secretKey := []byte(config.Config("JWT_SECRET")) // Replace with your actual secret key
+	tokenString, err := token.SignedString(secretKey)
+	if err != nil {
+		return "", fmt.Errorf("error signing token: %w", err)
+	}
+
+	return tokenString, nil
+}
+
+// ValidateJWT function to validate JWT token
+func ValidateJWT(tokenString string) (*Claims, error) {
+	// Parse the token
+	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		secretKey := []byte(config.Config("JWT_SECRET")) // Replace with your actual secret key
+		return secretKey, nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error parsing token: %w", err)
+	}
+
+	// Validate the token
+	if claims, ok := token.Claims.(*Claims); ok && token.Valid {
+		return claims, nil
+	} else {
+		return nil, fmt.Errorf("invalid token")
+	}
 }

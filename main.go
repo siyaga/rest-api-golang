@@ -15,6 +15,9 @@ func main() {
  app.Use(cors.New())
  router.SetupRoutes(app)
  // handle unavailable route
+
+
+ 
  app.Use(func(c *fiber.Ctx) error {
   return c.SendStatus(404) // => 404 "Not Found"
  })
