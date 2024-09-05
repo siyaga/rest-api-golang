@@ -15,7 +15,7 @@ func Login(c *fiber.Ctx) error {
 	}
 
 	var user model.User
-	if err := database.DB.Db.Where("username = ?", req.Username).First(&user).Error; err != nil {
+	if err := database.DB.Db.Where("username = ? AND deleted_at IS NULL", req.Username).First(&user).Error; err != nil {
 		return response.ResponseError(c, 401, "Invalid credentials", err)
 	}
 

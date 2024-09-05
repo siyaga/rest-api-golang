@@ -16,9 +16,25 @@ func CreateUser(c *fiber.Ctx) error {
 	user := new(model.User)
 	// Store the body in the user and return error if encountered
 	err := c.BodyParser(user)
+	
 	if err != nil {
 		return response.ResponseError(c, 500, "Something's wrong with your input", err)
 	}
+
+	// Validate if username already exists
+	var existingUserByUsername model.User
+	db.Where("username = ? AND deleted_at IS NULL", user.Username).First(&existingUserByUsername)
+	if existingUserByUsername.ID != uuid.Nil {
+		return response.ResponseError(c, 400, "Username already exists", nil)
+	}
+
+	// Validate if email already exists
+	var existingUserByEmail model.User
+	db.Where("email = ? AND deleted_at IS NULL", user.Email).First(&existingUserByEmail)
+	if existingUserByEmail.ID != uuid.Nil {
+		return response.ResponseError(c, 400, "Email already exists", nil)
+	}
+
 	err = db.Create(&user).Error
 	if err != nil {
 		return response.ResponseError(c, 500, "Could not create user", err)
@@ -63,12 +79,13 @@ func GetAllUsers(c *fiber.Ctx) error {
 	// Calculate offset
 	offset := (page - 1) * limit
 
-	// Find users with pagination and search
+	// Find users with pagination and search, excluding the password
+	query := db.Model(&users).Count(&total).Offset(offset).Limit(limit)
 	if searchQuery != "" {
-		db.Model(&users).Where("username LIKE ? OR email LIKE ?", "%"+searchQuery+"%", "%"+searchQuery+"%").Count(&total).Offset(offset).Limit(limit).Find(&users)
-	} else {
-		db.Model(&users).Count(&total).Offset(offset).Limit(limit).Find(&users)
+		query = query.Where("username LIKE ? OR email LIKE ?", "%"+searchQuery+"%", "%"+searchQuery+"%")
 	}
+	query.Find(&users)
+
 	// Return users with pagination information
 	return response.ResponseSuccessManyData(c, "Users Found", users, page, limit, int(total))
 }
@@ -149,24 +166,45 @@ func UpdateUser(c *fiber.Ctx) error {
 	if user.ID == uuid.Nil {
 		return response.ResponseError(c, 404, "User not found", nil)
 	}
+	
 	var updateUserData updateUser
 	err := c.BodyParser(&updateUserData)
 	if err != nil {
 		return response.ResponseError(c, 500, "Something's wrong with your input", err)
 	}
-	if updateUserData.Username != "" {
+
+	// --- Validation Logic ---
+
+	// Check if username is being updated and if it's already taken by another user
+	if updateUserData.Username != "" && updateUserData.Username != user.Username {
+		var existingUserByUsername model.User
+		db.Where("username = ? AND deleted_at IS NULL", updateUserData.Username).First(&existingUserByUsername)
+		if existingUserByUsername.ID != uuid.Nil {
+			return response.ResponseError(c, 400, "Username already exists", nil)
+		}
 		user.Username = updateUserData.Username
 	}
-	if updateUserData.Email != "" {
+
+	// Check if email is being updated and if it's already taken by another user
+	if updateUserData.Email != "" && updateUserData.Email != user.Email {
+		var existingUserByEmail model.User
+		db.Where("email = ? AND deleted_at IS NULL", updateUserData.Email).First(&existingUserByEmail)
+		if existingUserByEmail.ID != uuid.Nil {
+			return response.ResponseError(c, 400, "Email already exists", nil)
+		}
 		user.Email = updateUserData.Email
 	}
+
 	if updateUserData.Password != "" {
 		user.Password = updateUserData.Password
 	}
+
 	// Save the Changes
 	db.Save(&user)
-	// Return the updated user
-	return response.ResponseSuccessOneData(c, "User Updated", user)
+
+	
+	return response.ResponseSuccessOneData(c, "User Found", user)
+
 }
 
 

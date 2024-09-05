@@ -18,7 +18,7 @@ type User struct {
  ID       uuid.UUID `gorm:"type:uuid;"`
  Username string    `json:"username"`
  Email    string    `json:"email"`
- Password string    `json:"password"`
+	Password string    `json:"-"`
 }
 // Users struct
 type Users struct {
@@ -34,27 +34,61 @@ func (user *User) BeforeCreate(tx *gorm.DB) (err error) {
 	user.Password = string(hashedPassword) // Store the hashed password
  return
 }
+
+
+// CustomTime is a wrapper for time.Time to customize JSON marshaling
+type CustomTime time.Time
+
+// MarshalJSON implements the json.Marshaler interface
+func (ct CustomTime) MarshalJSON() ([]byte, error) {
+    return []byte(`"` + time.Time(ct).Format("2006-01-02 15:04:05") + `"`), nil
+}
+
 // Custom JSON Marshaling for Datetime Fields
 func (u *User) MarshalJSON() ([]byte, error) {
 	type UserAlias User
 	return json.Marshal(&struct {
-		UserAlias
-		CreatedAt string `json:"CreatedAt"`
-		UpdatedAt string `json:"UpdatedAt"`
-		DeletedAt *string `json:"DeletedAt"`
+			UserAlias
+			CreatedAt CustomTime `json:"CreatedAt"` 
+			UpdatedAt CustomTime `json:"UpdatedAt"` 
+			DeletedAt *CustomTime `json:"DeletedAt"` 
 	}{
-		UserAlias: UserAlias(*u),
-		CreatedAt: u.CreatedAt.Format("2006-01-02 15:04:05"),
-		UpdatedAt: u.UpdatedAt.Format("2006-01-02 15:04:05"),
-		DeletedAt: func() *string {
-			if !u.DeletedAt.Time.IsZero() { // Access the Time field
-				formatted := u.DeletedAt.Time.Format("2006-01-02 15:04:05")
-				return &formatted // Return a pointer to the formatted string
-			}
-			return nil // Return nil for null
-		}(),
+			UserAlias: UserAlias(*u),
+			CreatedAt: CustomTime(u.CreatedAt), 
+			UpdatedAt: CustomTime(u.UpdatedAt), 
+			DeletedAt: func() *CustomTime {
+					if u.DeletedAt.Valid {
+							return (*CustomTime)(&u.DeletedAt.Time)
+					}
+					return nil
+			}(),
 	})
 }
+
+
+
+
+// // Custom JSON Marshaling for Datetime Fields
+// func (u *User) MarshalJSON() ([]byte, error) {
+// 	type UserAlias User
+// 	return json.Marshal(&struct {
+// 		UserAlias
+// 		CreatedAt string `json:"CreatedAt"`
+// 		UpdatedAt string `json:"UpdatedAt"`
+// 		DeletedAt *string `json:"DeletedAt"`
+// 	}{
+// 		UserAlias: UserAlias(*u),
+// 		CreatedAt: u.CreatedAt.Format("2006-01-02 15:04:05.000"),
+// 		UpdatedAt: u.UpdatedAt.Format("2006-01-02 15:04:05.000"),
+// 		DeletedAt: func() *string {
+// 			if !u.DeletedAt.Time.IsZero() { // Access the Time field
+// 				formatted := u.DeletedAt.Time.Format("2006-01-02 15:04:05")
+// 				return &formatted // Return a pointer to the formatted string
+// 			}
+// 			return nil // Return nil for null
+// 		}(),
+// 	})
+// }
 
 // LoginRequest struct for login API
 type LoginRequest struct {

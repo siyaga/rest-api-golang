@@ -11,6 +11,7 @@ func ResponseError(c *fiber.Ctx, status int, message string, data interface{}) e
 
 // ResponseSuccessOneData function
 func ResponseSuccessOneData(c *fiber.Ctx, message string, data interface{}) error {
+	
 	return c.Status(200).JSON(fiber.Map{"status": 200, "message": message, "data": data})
 }
 
